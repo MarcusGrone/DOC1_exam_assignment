@@ -1,0 +1,5 @@
+@"
+target
+.mvn
+.git
+"@ | Set-Content -Path .\backend\.dockerignore -Encoding UTF8
