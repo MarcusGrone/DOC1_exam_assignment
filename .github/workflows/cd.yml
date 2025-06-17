@@ -11,14 +11,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # 1) Byg Docker-images
       - name: Build backend image
         run: docker build -t backend:latest ./backend
 
       - name: Build frontend image
         run: docker build -t frontend:latest ./frontend
 
-      # 2) Push images til GitHub Container Registry (valgfrit)
       - name: Log in to GHCR
         uses: docker/login-action@v2
         with:
@@ -28,35 +26,50 @@ jobs:
 
       - name: Tag & push backend
         run: |
-          docker tag backend:latest ghcr.io/${{ github.repository_owner }}/backend:latest
-          docker push ghcr.io/${{ github.repository_owner }}/backend:latest
+          docker tag backend:latest ghcr.io/marcusgrone/backend:latest
+          docker push ghcr.io/marcusgrone/backend:latest
 
       - name: Tag & push frontend
         run: |
-          docker tag frontend:latest ghcr.io/${{ github.repository_owner }}/frontend:latest
-          docker push ghcr.io/${{ github.repository_owner }}/frontend:latest
+          docker tag frontend:latest ghcr.io/marcusgrone/frontend:latest
+          docker push ghcr.io/marcusgrone/frontend:latest
 
-      # 3) Sæt kubectl op
+      # Opsæt Minikube (hvis du insisterer på at bruge Minikube)
+      - name: Install Minikube
+        uses: medyagh/setup-minikube@master
+
+      - name: Start Minikube
+        run: minikube start --driver=docker
+
       - name: Set up kubectl
         uses: azure/setup-kubectl@v3
         with:
           version: 'v1.32.2'
 
-      # 4) Gendan kubeconfig
+      # Opsæt kubeconfig
       - name: Restore kubeconfig
         env:
           KUBECONFIG_DATA: ${{ secrets.KUBECONFIG_DATA }}
         run: |
           echo "${KUBECONFIG_DATA}" | base64 --decode > $HOME/.kube/config
 
-      # 5) Deploy
+      # Lav Secret til at hente fra GHCR
+      - name: Create GHCR imagePullSecret
+        run: |
+          kubectl create secret docker-registry ghcr-secret \
+            --docker-server=ghcr.io \
+            --docker-username=${{ github.actor }} \
+            --docker-password=${{ secrets.GH_PAT }} \
+            --docker-email=${{ secrets.EMAIL }} --dry-run=client -o yaml | kubectl apply -f -
+
+      # Deploy til Minikube
       - name: Deploy to Minikube
         run: |
           kubectl apply -f k8s/pvc.yaml
           kubectl apply -f k8s/deployment.yaml
           kubectl apply -f k8s/service.yaml
 
-      # 6) Verify
+      # Verificér
       - name: Show rollout status
         run: |
           kubectl rollout status deployment/backend
