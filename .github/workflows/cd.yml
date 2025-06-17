@@ -1,0 +1,63 @@
+name: CD
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build-and-deploy:
+    name: Build, Push & Deploy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # 1) Byg Docker-images
+      - name: Build backend image
+        run: docker build -t backend:latest ./backend
+
+      - name: Build frontend image
+        run: docker build -t frontend:latest ./frontend
+
+      # 2) Push images til GitHub Container Registry (valgfrit)
+      - name: Log in to GHCR
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Tag & push backend
+        run: |
+          docker tag backend:latest ghcr.io/${{ github.repository_owner }}/backend:latest
+          docker push ghcr.io/${{ github.repository_owner }}/backend:latest
+
+      - name: Tag & push frontend
+        run: |
+          docker tag frontend:latest ghcr.io/${{ github.repository_owner }}/frontend:latest
+          docker push ghcr.io/${{ github.repository_owner }}/frontend:latest
+
+      # 3) Sæt kubectl op
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.32.2'
+
+      # 4) Gendan kubeconfig
+      - name: Restore kubeconfig
+        env:
+          KUBECONFIG_DATA: ${{ secrets.KUBECONFIG_DATA }}
+        run: |
+          echo "${KUBECONFIG_DATA}" | base64 --decode > $HOME/.kube/config
+
+      # 5) Deploy
+      - name: Deploy to Minikube
+        run: |
+          kubectl apply -f k8s/pvc.yaml
+          kubectl apply -f k8s/deployment.yaml
+          kubectl apply -f k8s/service.yaml
+
+      # 6) Verify
+      - name: Show rollout status
+        run: |
+          kubectl rollout status deployment/backend
+          kubectl rollout status deployment/frontend

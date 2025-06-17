@@ -1,0 +1,6 @@
+@"
+node_modules
+build
+.dockerignore
+.git
+"@ | Set-Content -Path .\frontend\.dockerignore -Encoding UTF8

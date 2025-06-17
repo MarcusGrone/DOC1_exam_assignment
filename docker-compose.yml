@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: tabloid
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: secret
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  backend:
+    build: ./backend
+    ports:
+      - "8082:8080"      # host 8082 → container 8080
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/tabloid
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: secret
+    depends_on:
+      - db
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        REACT_APP_API_URL: http://backend:8080/api/stories
+    ports:
+      - "3001:80"        # host 3001 → container 80
+    depends_on:
+      - backend
+
+volumes:
+  db-data:
