@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import type { Story } from '../models/Story';
 import { addStory } from '../services/api';
 
 interface Props { onAdd: () => void; }
